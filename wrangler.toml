@@ -1,0 +1,6 @@
+name = "pickleball"
+compatibility_date = "2023-12-01"
+
+[vars]
+DATABASE_URL="prisma://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlfa2V5IjoiMmMwM2NiOGQtZDc5MC00MTk1LWIyYjMtYjE2YThkMDc3N2ViIiwidGVuYW50X2lkIjoiMDc2MzA2ZmY1ODkwZWNhMWRlMDllOWFiM2ViN2JjZWFkN2NjYzFjNWM3YjI2ZjYzZmFlZTFjNmI4YWE4MTA4ZCIsImludGVybmFsX3NlY3JldCI6ImE4YTI1MTY2LTQxYjUtNDNlMi04Zjk4LTcwMDA4NzZhZWY3YyJ9.1y6cDhMkGtQpsRTQCugvN60ioBC53Pit26NiewHGliw"
+JWT_SECRET="haard@1808"
