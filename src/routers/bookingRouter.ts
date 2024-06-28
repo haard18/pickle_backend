@@ -59,77 +59,104 @@ bookingRouter.post('/createSlot', async (c) => {
         return c.json({ error: 'Error creating slots for the specified dates', details: error.message });
     }
 });
-// bookingRouter.post('/bookSlot', async (c) => {
-//     const body = await c.req.json();
-//     const { userId, slotFrom, slotTo, day } = body;
-//     const prisma = new PrismaClient({
-//         datasourceUrl: c.env.DATABASE_URL
-//     }).$extends(withAccelerate());
-//     const dayData = await prisma.day.findFirst({
-//         where: {
-//             name: day
-//         }
-//     });
-//     if (!dayData) {
-//         return c.json({ error: 'Invalid day' });
-//     }
-//     const slotData = await prisma.slot.findFirst({
-//         where: {
-//             from: slotFrom,
-//             to: slotTo,
-//             dayId: dayData.id
-//         }
-//     });
-//     if (slotData?.isBooked) {
-//         return c.json({ error: 'Slot already booked' });
-//     }
-//     if (!slotData) {
-//         return c.json({ error: 'Invalid slot' });
-//     }
-//     const booking = await prisma.booking.create({
-//         data: {
-//             userId,
-//             slotId: slotData.id
-//         }
-//     });
-//     await prisma.slot.update({
-//         where: {
-//             id: slotData?.id
-//         },
-//         data: {
-//             isBooked: true
-//         }
-//     });
-// })
-// bookingRouter.get('/getBookings', async (c) => {
-//     const prisma = new PrismaClient({
-//         datasourceUrl: c.env.DATABASE_URL
-//     }).$extends(withAccelerate());
-//     const bookings = await prisma.booking.findMany({
-//         select: {
-//             id: true,
-//             userId: true,
-//             slotId: true,
-//             user: {
-//                 select: {
-//                     name: true,
-//                     phoneNo: true,
-//                     email: true
-//                 }
+bookingRouter.post('/bookSlot', async (c) => {
+    const body = await c.req.json();
+    const { userId, from, to, date } = body;
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
 
-//             },
-//             slot: {
-//                 select: {
-//                     from: true,
-//                     to: true,
-//                     day: {
-//                         select: {
-//                             name: true
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     });
-//     return c.json(bookings);
-// })
+    try {
+
+        const parsedDate = new Date(date);
+        parsedDate.setUTCHours(0, 0, 0, 0);
+
+        const slotData = await prisma.slot.findFirst({
+            where: {
+                date: parsedDate,
+                from: from,
+                to: to
+            }
+        });
+
+        if (!slotData) {
+            return c.json({ error: 'Invalid slot' });
+        }
+
+        if (slotData.isBooked) {
+            return c.json({ error: 'Slot already booked' });
+        }
+
+        const booking = await prisma.booking.create({
+            data: {
+                userId,
+                slotId: slotData.id
+            }
+        });
+
+        await prisma.slot.update({
+            where: {
+                id: slotData.id
+            },
+            data: {
+                isBooked: true
+            }
+        });
+
+        return c.json({ message: 'Slot booked successfully' });
+    } catch (error) {
+        return c.json({ error: 'Error booking slot', details: "Error creating " });
+    } finally {
+        await prisma.$disconnect();
+    }
+});
+bookingRouter.get('/getSlots/:dates', async (c) => {
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
+
+    const dates = c.req.param('dates');
+    const [startDate, endDate] = dates.split(',');
+
+    // Validate query parameters
+    if (!startDate || !endDate) {
+        return c.json({ error: 'Both startDate and endDate must be provided' });
+    }
+
+    try {
+        // Convert query parameters to Date objects
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // Fetch slots within the specified date range
+        const slots = await prisma.slot.findMany({
+            where: {
+                date: {
+                    gte: start,
+                    lte: end
+                }
+            },
+            orderBy: {
+                date: 'asc'
+            }
+        });
+
+        // Structure slots by date with from, to, and isBooked
+        const slotsByDate: Record<string, { from: string; to: string; isBooked: boolean; }[]> = {};
+        slots.forEach(slot => {
+            const dateKey = slot.date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
+            if (!slotsByDate[dateKey]) {
+                slotsByDate[dateKey] = [];
+            }
+            slotsByDate[dateKey].push({
+                from: slot.from,
+                to: slot.to,
+                isBooked: slot.isBooked
+            });
+        });
+
+        return c.json({ slots: slotsByDate });
+    } catch (error) {
+        return c.json({ error: 'Error fetching slots' });
+    }
+});
