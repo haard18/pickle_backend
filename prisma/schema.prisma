@@ -23,18 +23,11 @@ model User {
 
 model Slot {
   id       String   @id @default(uuid())
+  date     DateTime
   from     String
   to       String
   isBooked Boolean  @default(false)
-  dayId    String
-  day      Day      @relation(fields: [dayId], references: [id])
   bookings Booking[]
-}
-
-model Day {
-  id     String @id @default(uuid())
-  name   String @unique
-  slots  Slot[]
 }
 
 model Booking {

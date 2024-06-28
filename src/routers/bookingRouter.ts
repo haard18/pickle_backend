@@ -11,9 +11,6 @@ bookingRouter.post('/createSlot', async (c) => {
     const prisma = new PrismaClient({
         datasourceUrl: c.env.DATABASE_URL
     }).$extends(withAccelerate());
-    const daysOfWeek = [
-        "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-    ];
 
     const slotTimings = [
         { from: "00:00:00", to: "01:00:00" },
@@ -37,19 +34,19 @@ bookingRouter.post('/createSlot', async (c) => {
         { from: "23:00:00", to: "00:00:00" }
     ];
 
+    // Define the date range for which slots should be created
+    const startDate = new Date('2024-07-01'); // Change this to your desired start date
+    const endDate = new Date('2024-07-07'); // Change this to your desired end date
+
     try {
-        for (const day of daysOfWeek) {
-            const createdDay = await prisma.day.create({
-                data: {
-                    name: day,
-                }
-            });
+        for (let date = startDate; date <= endDate; date.setDate(date.getDate() + 1)) {
+            const dateString = date.toISOString().split('T')[0];
 
             const slots = slotTimings.map((timing) => ({
+                date: new Date(dateString),
                 from: timing.from,
                 to: timing.to,
                 isBooked: false,
-                dayId: createdDay.id
             }));
 
             await prisma.slot.createMany({
@@ -57,83 +54,82 @@ bookingRouter.post('/createSlot', async (c) => {
             });
         }
 
-        return c.json({ message: 'Slots for all days created successfully' });
+        return c.json({ message: 'Slots for all dates created successfully' });
     } catch (error: any) {
-        return c.json({ error: 'Error creating slots for the week', details: error.message });
-
+        return c.json({ error: 'Error creating slots for the specified dates', details: error.message });
     }
 });
-bookingRouter.post('/bookSlot', async (c) => {
-    const body = await c.req.json();
-    const { userId, slotFrom, slotTo, day } = body;
-    const prisma = new PrismaClient({
-        datasourceUrl: c.env.DATABASE_URL
-    }).$extends(withAccelerate());
-    const dayData = await prisma.day.findFirst({
-        where: {
-            name: day
-        }
-    });
-    if (!dayData) {
-        return c.json({ error: 'Invalid day' });
-    }
-    const slotData = await prisma.slot.findFirst({
-        where: {
-            from: slotFrom,
-            to: slotTo,
-            dayId: dayData.id
-        }
-    });
-    if (slotData?.isBooked) {
-        return c.json({ error: 'Slot already booked' });
-    }
-    if (!slotData) {
-        return c.json({ error: 'Invalid slot' });
-    }
-    const booking = await prisma.booking.create({
-        data: {
-            userId,
-            slotId: slotData.id
-        }
-    });
-    await prisma.slot.update({
-        where: {
-            id: slotData?.id
-        },
-        data: {
-            isBooked: true
-        }
-    });
-})
-bookingRouter.get('/getBookings', async (c) => {
-    const prisma = new PrismaClient({
-        datasourceUrl: c.env.DATABASE_URL
-    }).$extends(withAccelerate());
-    const bookings = await prisma.booking.findMany({
-        select: {
-            id: true,
-            userId: true,
-            slotId: true,
-            user:{
-                select:{
-                    name:true,
-                    phoneNo:true,
-                    email:true
-                }
-            
-            },
-            slot:{
-                select:{
-                    from:true,
-                    to:true,
-                    day:{
-                        select:{
-                            name:true
-                        }
-                    }
-                }
-            }
-        }
-    });
-    return c.json(bookings);
-})
+// bookingRouter.post('/bookSlot', async (c) => {
+//     const body = await c.req.json();
+//     const { userId, slotFrom, slotTo, day } = body;
+//     const prisma = new PrismaClient({
+//         datasourceUrl: c.env.DATABASE_URL
+//     }).$extends(withAccelerate());
+//     const dayData = await prisma.day.findFirst({
+//         where: {
+//             name: day
+//         }
+//     });
+//     if (!dayData) {
+//         return c.json({ error: 'Invalid day' });
+//     }
+//     const slotData = await prisma.slot.findFirst({
+//         where: {
+//             from: slotFrom,
+//             to: slotTo,
+//             dayId: dayData.id
+//         }
+//     });
+//     if (slotData?.isBooked) {
+//         return c.json({ error: 'Slot already booked' });
+//     }
+//     if (!slotData) {
+//         return c.json({ error: 'Invalid slot' });
+//     }
+//     const booking = await prisma.booking.create({
+//         data: {
+//             userId,
+//             slotId: slotData.id
+//         }
+//     });
+//     await prisma.slot.update({
+//         where: {
+//             id: slotData?.id
+//         },
+//         data: {
+//             isBooked: true
+//         }
+//     });
+// })
+// bookingRouter.get('/getBookings', async (c) => {
+//     const prisma = new PrismaClient({
+//         datasourceUrl: c.env.DATABASE_URL
+//     }).$extends(withAccelerate());
+//     const bookings = await prisma.booking.findMany({
+//         select: {
+//             id: true,
+//             userId: true,
+//             slotId: true,
+//             user: {
+//                 select: {
+//                     name: true,
+//                     phoneNo: true,
+//                     email: true
+//                 }
+
+//             },
+//             slot: {
+//                 select: {
+//                     from: true,
+//                     to: true,
+//                     day: {
+//                         select: {
+//                             name: true
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//     });
+//     return c.json(bookings);
+// })
