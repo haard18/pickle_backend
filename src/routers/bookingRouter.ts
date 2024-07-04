@@ -12,34 +12,54 @@ bookingRouter.post('/createSlot', async (c) => {
         datasourceUrl: c.env.DATABASE_URL
     }).$extends(withAccelerate());
 
+    const { startDate, endDate } = await c.req.json();
+
     const slotTimings = [
-        { from: "00:00:00", to: "01:00:00" },
-        { from: "06:00:00", to: "07:00:00" },
-        { from: "07:00:00", to: "08:00:00" },
-        { from: "08:00:00", to: "09:00:00" },
-        { from: "09:00:00", to: "10:00:00" },
-        { from: "10:00:00", to: "11:00:00" },
-        { from: "11:00:00", to: "12:00:00" },
-        { from: "12:00:00", to: "13:00:00" },
-        { from: "13:00:00", to: "14:00:00" },
-        { from: "14:00:00", to: "15:00:00" },
-        { from: "15:00:00", to: "16:00:00" },
-        { from: "16:00:00", to: "17:00:00" },
-        { from: "17:00:00", to: "18:00:00" },
-        { from: "18:00:00", to: "19:00:00" },
-        { from: "19:00:00", to: "20:00:00" },
-        { from: "20:00:00", to: "21:00:00" },
-        { from: "21:00:00", to: "22:00:00" },
-        { from: "22:00:00", to: "23:00:00" },
-        { from: "23:00:00", to: "00:00:00" }
+        { from: "00:00:00", to: "00:30:00" },
+        { from: "00:30:00", to: "01:00:00" },
+        { from: "06:00:00", to: "06:30:00" },
+        { from: "06:30:00", to: "07:00:00" },
+        { from: "07:00:00", to: "07:30:00" },
+        { from: "07:30:00", to: "08:00:00" },
+        { from: "08:00:00", to: "08:30:00" },
+        { from: "08:30:00", to: "09:00:00" },
+        { from: "09:00:00", to: "09:30:00" },
+        { from: "09:30:00", to: "10:00:00" },
+        { from: "10:00:00", to: "10:30:00" },
+        { from: "10:30:00", to: "11:00:00" },
+        { from: "11:00:00", to: "11:30:00" },
+        { from: "11:30:00", to: "12:00:00" },
+        { from: "12:00:00", to: "12:30:00" },
+        { from: "12:30:00", to: "13:00:00" },
+        { from: "13:00:00", to: "13:30:00" },
+        { from: "13:30:00", to: "14:00:00" },
+        { from: "14:00:00", to: "14:30:00" },
+        { from: "14:30:00", to: "15:00:00" },
+        { from: "15:00:00", to: "15:30:00" },
+        { from: "15:30:00", to: "16:00:00" },
+        { from: "16:00:00", to: "16:30:00" },
+        { from: "16:30:00", to: "17:00:00" },
+        { from: "17:00:00", to: "17:30:00" },
+        { from: "17:30:00", to: "18:00:00" },
+        { from: "18:00:00", to: "18:30:00" },
+        { from: "18:30:00", to: "19:00:00" },
+        { from: "19:00:00", to: "19:30:00" },
+        { from: "19:30:00", to: "20:00:00" },
+        { from: "20:00:00", to: "20:30:00" },
+        { from: "20:30:00", to: "21:00:00" },
+        { from: "21:00:00", to: "21:30:00" },
+        { from: "21:30:00", to: "22:00:00" },
+        { from: "22:00:00", to: "22:30:00" },
+        { from: "22:30:00", to: "23:00:00" },
+        { from: "23:00:00", to: "23:30:00" },
+        { from: "23:30:00", to: "00:00:00" }
     ];
 
-    // Define the date range for which slots should be created
-    const startDate = new Date('2024-07-01'); // Change this to your desired start date
-    const endDate = new Date('2024-07-07'); // Change this to your desired end date
-
     try {
-        for (let date = startDate; date <= endDate; date.setDate(date.getDate() + 1)) {
+        let date = new Date(startDate);
+        const endDateObj = new Date(endDate);
+
+        while (date <= endDateObj) {
             const dateString = date.toISOString().split('T')[0];
 
             const slots = slotTimings.map((timing) => ({
@@ -52,6 +72,9 @@ bookingRouter.post('/createSlot', async (c) => {
             await prisma.slot.createMany({
                 data: slots,
             });
+
+            // Increment the date correctly
+            date.setDate(date.getDate() + 1);
         }
 
         return c.json({ message: 'Slots for all dates created successfully' });
@@ -59,6 +82,20 @@ bookingRouter.post('/createSlot', async (c) => {
         return c.json({ error: 'Error creating slots for the specified dates', details: error.message });
     }
 });
+bookingRouter.delete('/deleteSlots', async (c) => {
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
+
+    try {
+        await prisma.slot.deleteMany({});
+
+        return c.json({ message: 'All slots deleted successfully' });
+    } catch (error) {
+        return c.json({ error: 'Error deleting slots' });
+    }
+})
+
 bookingRouter.post('/bookSlot', async (c) => {
     const body = await c.req.json();
     const { userId, from, to, date } = body;

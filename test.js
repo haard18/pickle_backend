@@ -1,8 +1,10 @@
-function parseData(){
-    const parsedDate = new Date(date);
-    console.log(parsedDate)
-    parsedDate.setUTCHours(0, 0, 0, 0);
-    return parsedDate
+const { decode, verify, sign, jwt } =require("hono/jwt");
+
+function verifyToken(token){
+    const decoded = decode(token);
+    return decoded;
 }
-const date='2024-01-04';
-console.log(parseData(date));
+// const token=import { decode, verify, sign, jwt } from "hono/jwt";
+const token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.IkhhYXJkMTgwOCI.8yAROHnNbYi2vzuK8Cy67rsL9CZCcrrp8_lAL9zB_DU"
+const result=verifyToken(token);
+console.log(result)

@@ -46,7 +46,8 @@ userRouter.post('/signUp', async (c) => {
                 phoneNo: body.phoneNo
             }
         })
-        return c.json(user);
+        const token=await sign({userid:user.id},c.env.JWT_SECRET);
+        return c.json({token:token});
 
     } catch (error) {
         return c.json({ error: "Error in creating user" });
@@ -77,7 +78,8 @@ userRouter.post('/signIn',async(c)=>{
     if (decoded !== body.password) {
         return c.json({ error: "Invalid password" });
     }
-    return c.json({message:"Success"})
+    const token=await sign({userid:user.id},c.env.JWT_SECRET);
+    return c.json({token:token,message:"Success"});
 })
 userRouter.get('/getAllUsers',async(c)=>{
     const prisma = new PrismaClient({
