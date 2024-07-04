@@ -96,7 +96,7 @@ bookingRouter.delete('/deleteSlots', async (c) => {
     }
 })
 
-bookingRouter.post('/bookSlot', async (c) => {
+bookingRouter.put('/bookSlot', async (c) => {
     const body = await c.req.json();
     const { userId, from, to, date } = body;
     const prisma = new PrismaClient({
@@ -105,9 +105,7 @@ bookingRouter.post('/bookSlot', async (c) => {
 
     try {
 
-        const parsedDate = new Date(date);
-        parsedDate.setUTCHours(0, 0, 0, 0);
-
+        const parsedDate=date+" 00:00:00"
         const slotData = await prisma.slot.findFirst({
             where: {
                 date: parsedDate,

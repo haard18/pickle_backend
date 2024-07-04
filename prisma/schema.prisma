@@ -38,3 +38,10 @@ model Booking {
   user      User     @relation(fields: [userId], references: [id])
   slot      Slot     @relation(fields: [slotId], references: [id])
 }
+model Admin{
+  id       String    @id @default(uuid())
+  name     String
+  email    String    @unique
+  password String
+  phoneNo  String
+}

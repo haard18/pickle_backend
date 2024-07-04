@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { userRouter } from './routers/userRouter'
 import { bookingRouter } from './routers/bookingRouter'
 import { cors } from 'hono/cors'
+import { adminRouter } from './routers/adminRouter'
 
 const app = new Hono()
 app.use(cors({
@@ -14,5 +15,6 @@ app.get('/', (c) => {
   return c.text('Hello today is '+date.toDateString()+' and time is '+date.toTimeString()+' and it is a good day to code!');
 })
 app.route('/api/user',userRouter)
+app.route('/api/admin',adminRouter)
 app.route('/api/booking',bookingRouter)
 export default app
