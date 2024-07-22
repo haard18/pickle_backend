@@ -1,59 +1,57 @@
 import { Hono } from "hono";
 import { PrismaClient } from "@prisma/client/edge";
 import { withAccelerate } from "@prisma/extension-accelerate";
+import { cricketCourtId, footballCourtId, pickleBall1CourtId, pickleBall2CourtId } from "../var";
 export const bookingRouter = new Hono<{
     Bindings: {
         DATABASE_URL: string;
         JWT_SECRET: string;
     }
 }>();
-bookingRouter.post('/createSlot', async (c) => {
+bookingRouter.post('/addCourt', async (c) => {
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
+    try {
+        const body = await c.req.json();
+        const { name } = body;
+        const court = await prisma.court.create({
+            data: {
+                name
+            }
+        });
+        const id = court.id;
+        return c.json({ message: 'Court added successfully', cid: id });
+    } catch (error) {
+        return c.json({ error: 'Error adding court' });
+    }
+})
+bookingRouter.post('/createSlots', async (c) => {
     const prisma = new PrismaClient({
         datasourceUrl: c.env.DATABASE_URL
     }).$extends(withAccelerate());
 
-    const { startDate, endDate } = await c.req.json();
-
-    const slotTimings = [
-        { from: "00:00:00", to: "00:30:00" },
-        { from: "00:30:00", to: "01:00:00" },
-        { from: "06:00:00", to: "06:30:00" },
-        { from: "06:30:00", to: "07:00:00" },
-        { from: "07:00:00", to: "07:30:00" },
-        { from: "07:30:00", to: "08:00:00" },
-        { from: "08:00:00", to: "08:30:00" },
-        { from: "08:30:00", to: "09:00:00" },
-        { from: "09:00:00", to: "09:30:00" },
-        { from: "09:30:00", to: "10:00:00" },
-        { from: "10:00:00", to: "10:30:00" },
-        { from: "10:30:00", to: "11:00:00" },
-        { from: "11:00:00", to: "11:30:00" },
-        { from: "11:30:00", to: "12:00:00" },
-        { from: "12:00:00", to: "12:30:00" },
-        { from: "12:30:00", to: "13:00:00" },
-        { from: "13:00:00", to: "13:30:00" },
-        { from: "13:30:00", to: "14:00:00" },
-        { from: "14:00:00", to: "14:30:00" },
-        { from: "14:30:00", to: "15:00:00" },
-        { from: "15:00:00", to: "15:30:00" },
-        { from: "15:30:00", to: "16:00:00" },
-        { from: "16:00:00", to: "16:30:00" },
-        { from: "16:30:00", to: "17:00:00" },
-        { from: "17:00:00", to: "17:30:00" },
-        { from: "17:30:00", to: "18:00:00" },
-        { from: "18:00:00", to: "18:30:00" },
-        { from: "18:30:00", to: "19:00:00" },
-        { from: "19:00:00", to: "19:30:00" },
-        { from: "19:30:00", to: "20:00:00" },
-        { from: "20:00:00", to: "20:30:00" },
-        { from: "20:30:00", to: "21:00:00" },
-        { from: "21:00:00", to: "21:30:00" },
-        { from: "21:30:00", to: "22:00:00" },
-        { from: "22:00:00", to: "22:30:00" },
-        { from: "22:30:00", to: "23:00:00" },
-        { from: "23:00:00", to: "23:30:00" },
-        { from: "23:30:00", to: "00:00:00" }
-    ];
+    const { startDate, endDate, sport } = await c.req.json();
+    console.log(startDate, endDate, sport);
+    let increment, courtId;
+    if (sport === 'cricket') {
+        increment = 30; // 30 minutes
+        courtId = cricketCourtId;
+    }
+    else if (sport === 'football') {
+        increment = 30; // 30 minutes
+        courtId = footballCourtId;
+    }
+    else if (sport === 'pickleball1') {
+        increment = 60; // 1 hour
+        courtId = pickleBall1CourtId;
+    } else if (sport === 'pickleball2') {
+        increment = 60; // 1 hour
+        courtId = pickleBall2CourtId;
+    }
+    else {
+        return c.json({ error: 'Invalid sport name' }, 400);
+    }
 
     try {
         let date = new Date(startDate);
@@ -62,12 +60,35 @@ bookingRouter.post('/createSlot', async (c) => {
         while (date <= endDateObj) {
             const dateString = date.toISOString().split('T')[0];
 
-            const slots = slotTimings.map((timing) => ({
-                date: new Date(dateString),
-                from: timing.from,
-                to: timing.to,
-                isBooked: false,
-            }));
+            // Generate slot timings based on the provided duration
+            const slots = [];
+            let currentTime = new Date(dateString + 'T06:00:00'); 
+
+            while (currentTime.getHours() < 24) { // End at midnight
+                const fromTime = currentTime.toISOString().split('T')[1].split('.')[0];
+                let toTime = '';
+
+                if (increment === 30) {
+                    currentTime.setMinutes(currentTime.getMinutes() + increment);
+                    toTime = currentTime.toISOString().split('T')[1].split('.')[0];
+                } else if (increment === 60) {
+                    currentTime.setHours(currentTime.getHours() + 1);
+                    toTime = currentTime.toISOString().split('T')[1].split('.')[0];
+                }
+
+                slots.push({
+                    date: new Date(dateString),
+                    from: fromTime,
+                    to: toTime,
+                    isBooked: false,
+                    courtId: courtId
+                });
+
+                // Stop generating slots if it exceeds the day boundary
+                if (currentTime.getHours() === 0 && currentTime.getMinutes() === 0) {
+                    break;
+                }
+            }
 
             await prisma.slot.createMany({
                 data: slots,
@@ -78,8 +99,8 @@ bookingRouter.post('/createSlot', async (c) => {
         }
 
         return c.json({ message: 'Slots for all dates created successfully' });
-    } catch (error: any) {
-        return c.json({ error: 'Error creating slots for the specified dates', details: error.message });
+    } catch (error) {
+        return c.json({ error: 'Error creating slots for the specified dates' });
     }
 });
 bookingRouter.delete('/deleteSlots', async (c) => {
@@ -95,6 +116,17 @@ bookingRouter.delete('/deleteSlots', async (c) => {
         return c.json({ error: 'Error deleting slots' });
     }
 })
+bookingRouter.get('/getAllCourts', async (c) => {
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
+    try {
+        const courts = await prisma.court.findMany();
+        return c.json({ courts });
+    } catch (error) {
+        return c.json({ error: 'Error fetching courts' });
+    }
+})
 
 bookingRouter.put('/bookSlot', async (c) => {
     const body = await c.req.json();
@@ -105,7 +137,7 @@ bookingRouter.put('/bookSlot', async (c) => {
 
     try {
 
-        const parsedDate=date+" 00:00:00"
+        const parsedDate = date + " 00:00:00"
         const slotData = await prisma.slot.findFirst({
             where: {
                 date: parsedDate,
