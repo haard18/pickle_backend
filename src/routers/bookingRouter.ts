@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { PrismaClient } from "@prisma/client/edge";
 import { withAccelerate } from "@prisma/extension-accelerate";
-import { cricketCourtId, footballCourtId, pickleBall1CourtId, pickleBall2CourtId } from "../var";
+import { cricketCourtId, pickleBall1CourtId, pickleBall2CourtId } from "../var";
 export const bookingRouter = new Hono<{
     Bindings: {
         DATABASE_URL: string;
@@ -27,82 +27,58 @@ bookingRouter.post('/addCourt', async (c) => {
     }
 })
 bookingRouter.post('/createSlots', async (c) => {
+    const { startDate, endDate, sportName, courtId } = await c.req.json();
     const prisma = new PrismaClient({
         datasourceUrl: c.env.DATABASE_URL
     }).$extends(withAccelerate());
+    // Check if the provided courtId exists
+    const court = await prisma.court.findUnique({
+        where: { id: courtId }
+    });
 
-    const { startDate, endDate, sport } = await c.req.json();
-    console.log(startDate, endDate, sport);
-    let increment, courtId;
-    if (sport === 'cricket') {
-        increment = 30; // 30 minutes
-        courtId = cricketCourtId;
+    if (!court) {
+        return c.json({ success: false, message: 'Invalid courtId' });
     }
-    else if (sport === 'football') {
-        increment = 30; // 30 minutes
-        courtId = footballCourtId;
-    }
-    else if (sport === 'pickleball1') {
-        increment = 60; // 1 hour
-        courtId = pickleBall1CourtId;
-    } else if (sport === 'pickleball2') {
-        increment = 60; // 1 hour
-        courtId = pickleBall2CourtId;
-    }
-    else {
-        return c.json({ error: 'Invalid sport name' }, 400);
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const duration = sportName === 'pickelball' ? 60 : 30; // duration in minutes
+    const startTime = 6 * 60; // 6 AM in minutes
+    const endTime = 24 * 60; // 12 midnight in minutes
+
+    const slots = [];
+    console.log(duration);
+    const formatTime = (minutes: any) => {
+        const hours = Math.floor(minutes / 60).toString().padStart(2, '0');
+        const mins = (minutes % 60).toString().padStart(2, '0');
+        return `${hours}:${mins}`;
+    };
+
+    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+        for (let time = startTime; time < endTime; time += duration) {
+            const from = formatTime(time);
+            const to = formatTime(time + duration);
+            console.log(date, from, to);
+            slots.push({
+                date: new Date(date),
+                from: from,
+                to: to,
+                isBooked: false,
+                courtId: courtId
+            });
+        }
     }
 
     try {
-        let date = new Date(startDate);
-        const endDateObj = new Date(endDate);
-
-        while (date <= endDateObj) {
-            const dateString = date.toISOString().split('T')[0];
-
-            // Generate slot timings based on the provided duration
-            const slots = [];
-            let currentTime = new Date(dateString + 'T06:00:00'); 
-
-            while (currentTime.getHours() < 24) { // End at midnight
-                const fromTime = currentTime.toISOString().split('T')[1].split('.')[0];
-                let toTime = '';
-
-                if (increment === 30) {
-                    currentTime.setMinutes(currentTime.getMinutes() + increment);
-                    toTime = currentTime.toISOString().split('T')[1].split('.')[0];
-                } else if (increment === 60) {
-                    currentTime.setHours(currentTime.getHours() + 1);
-                    toTime = currentTime.toISOString().split('T')[1].split('.')[0];
-                }
-
-                slots.push({
-                    date: new Date(dateString),
-                    from: fromTime,
-                    to: toTime,
-                    isBooked: false,
-                    courtId: courtId
-                });
-
-                // Stop generating slots if it exceeds the day boundary
-                if (currentTime.getHours() === 0 && currentTime.getMinutes() === 0) {
-                    break;
-                }
-            }
-
-            await prisma.slot.createMany({
-                data: slots,
-            });
-
-            // Increment the date correctly
-            date.setDate(date.getDate() + 1);
-        }
-
-        return c.json({ message: 'Slots for all dates created successfully' });
+        await prisma.slot.createMany({
+            data: slots
+        });
+        return c.json({ success: true, message: 'Slots created successfully' });
     } catch (error) {
-        return c.json({ error: 'Error creating slots for the specified dates' });
+        return c.json({ success: false, message: 'An error occurred while creating slots' });
     }
 });
+
 bookingRouter.delete('/deleteSlots', async (c) => {
     const prisma = new PrismaClient({
         datasourceUrl: c.env.DATABASE_URL
@@ -127,103 +103,153 @@ bookingRouter.get('/getAllCourts', async (c) => {
         return c.json({ error: 'Error fetching courts' });
     }
 })
-
 bookingRouter.put('/bookSlot', async (c) => {
-    const body = await c.req.json();
-    const { userId, from, to, date } = body;
     const prisma = new PrismaClient({
         datasourceUrl: c.env.DATABASE_URL
     }).$extends(withAccelerate());
 
+    const { userId, from, to, date, sport } = await c.req.json();
+
+    // Determine the courtId based on the sport
+    let courtId;
+    switch (sport) {
+        case 'cricket':
+            courtId = "d164c19d-797c-4a91-a67a-2e3ca08e2e6f";
+            break;
+        case 'pickleball1':
+            courtId = "f33e55e9-e9a9-43d6-90ce-c9aa372c684a";
+            break;
+        case 'pickleball2':
+            courtId = "7eddd897-15e5-4adf-a4d5-a9776af8f26d";
+            break;
+        default:
+            return c.json({ message: 'Invalid sport' });
+    }
+
     try {
-
-        const parsedDate = date + " 00:00:00"
-        const slotData = await prisma.slot.findFirst({
+        // Find the existing slot
+        const slot = await prisma.slot.findFirst({
             where: {
-                date: parsedDate,
-                from: from,
-                to: to
+                date: new Date(date),
+                from,
+                to,
+                courtId
             }
         });
 
-        if (!slotData) {
-            return c.json({ error: 'Invalid slot' });
+        if (!slot) {
+            return c.json({ message: 'Slot not found' });
         }
 
-        if (slotData.isBooked) {
-            return c.json({ error: 'Slot already booked' });
+        if (slot.isBooked) {
+            return c.json({ message: 'Slot already booked' });
         }
 
-        const booking = await prisma.booking.create({
-            data: {
-                userId,
-                slotId: slotData.id
-            }
-        });
-
+        // Update the slot to mark it as booked
         await prisma.slot.update({
             where: {
-                id: slotData.id
+                id: slot.id
             },
             data: {
                 isBooked: true
             }
         });
 
-        return c.json({ message: 'Slot booked successfully' });
+        // Create a new booking record
+        const booking = await prisma.booking.create({
+            data: {
+                userId,
+                slotId: slot.id
+            }
+        });
+
+        return c.json({ message: 'Slot booked successfully', booking });
     } catch (error) {
-        return c.json({ error: 'Error booking slot', details: "Error creating " });
-    } finally {
-        await prisma.$disconnect();
+        console.error(error);
+        return c.json({ error: 'An error occurred while booking the slot' });
     }
 });
-bookingRouter.get('/getSlots/:dates', async (c) => {
+bookingRouter.get('/getSlots/:court/:startDate/:endDate', async (c) => {
     const prisma = new PrismaClient({
         datasourceUrl: c.env.DATABASE_URL
     }).$extends(withAccelerate());
-
-    const dates = c.req.param('dates');
-    const [startDate, endDate] = dates.split(',');
-
-    // Validate query parameters
-    if (!startDate || !endDate) {
-        return c.json({ error: 'Both startDate and endDate must be provided' });
+    let id;
+    const startDate = new Date(c.req.param('startDate'));
+    const endDate = new Date(c.req.param('endDate'));
+    // const endDate=new Date();
+    const court = c.req.param('court');
+    switch (court) {
+        case 'cricket':
+            console.log('cricket');
+            id = "d164c19d-797c-4a91-a67a-2e3ca08e2e6f";
+            break;
+        case 'pickleball1':
+            id = "f33e55e9-e9a9-43d6-90ce-c9aa372c684a";
+            break;
+        case 'pickleball2':
+            id = "7eddd897-15e5-4adf-a4d5-a9776af8f26d";
+            break;
+        default:
+            break;
     }
-
     try {
-        // Convert query parameters to Date objects
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-
-        // Fetch slots within the specified date range
+        console.log(id)
         const slots = await prisma.slot.findMany({
             where: {
+                courtId: id,
                 date: {
-                    gte: start,
-                    lte: end
+                    gte: new Date(startDate),
+                    lte: new Date(endDate)
                 }
-            },
-            orderBy: {
-                date: 'asc'
             }
         });
-
-        // Structure slots by date with from, to, and isBooked
-        const slotsByDate: Record<string, { from: string; to: string; isBooked: boolean; }[]> = {};
-        slots.forEach(slot => {
-            const dateKey = slot.date.toISOString().split('T')[0]; // Get YYYY-MM-DD format
-            if (!slotsByDate[dateKey]) {
-                slotsByDate[dateKey] = [];
-            }
-            slotsByDate[dateKey].push({
-                from: slot.from,
-                to: slot.to,
-                isBooked: slot.isBooked
-            });
-        });
-
-        return c.json({ slots: slotsByDate });
+        return c.json({ slots });
     } catch (error) {
         return c.json({ error: 'Error fetching slots' });
     }
-});
+})
+bookingRouter.get('/getAllSlots', async (c) => {
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
+    try {
+        const slots = await prisma.slot.findMany();
+        return c.json({ slots });
+    } catch (error) {
+        return c.json({ error: 'Error fetching slots' });
+    }
+})
+bookingRouter.get('/getBookings', async (c) => {
+    const prisma = new PrismaClient({
+        datasourceUrl: c.env.DATABASE_URL
+    }).$extends(withAccelerate());
+    try {
+        const bookings = await prisma.booking.findMany({
+            select:{
+                id:true,
+                userId:true,
+                slotId:true,
+                slot:{
+                    select:{
+                        id:true,
+                        date:true,
+                        from:true,
+                        to:true,
+                        courtId:true
+                    }
+                },
+                user:{
+                    select:{
+                        id:true,
+                        name:true
+                    }
+                }
+            },
+            
+        });
+        return c.json({ bookings });
+    } catch (error) {
+        return c.json({ error: 'Error fetching bookings' });
+    }
+})
+export default bookingRouter;
